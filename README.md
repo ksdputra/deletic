@@ -107,8 +107,8 @@ Post.kept            # => [#<Post id: 1, ...>]
 Post.soft_deleted    # => []
 
 post = Post.first    # => #<Post id: 1, ...>
-post.soft_destroy     # => true
-post.soft_destroy!    # => Deletic::RecordNotDeleted: Failed to soft delete the record
+post.soft_destroy    # => true
+post.soft_destroy!   # => Deletic::RecordNotDeleted: Failed to soft delete the record
 post.soft_deleted?   # => true
 post.kept?           # => false
 post.deleted_at      # => 2020-04-01 00:00:00 +0700
@@ -124,8 +124,8 @@ Post.kept            # => [#<Post id: 1, ...>]
 Post.soft_deleted    # => []
 
 post = Post.first    # => #<Post id: 1, ...>
-post.soft_destroy     # => true
-post.soft_destroy!    # => Deletic::RecordNotDeleted: Failed to soft delete the record
+post.soft_destroy    # => true
+post.soft_destroy!   # => Deletic::RecordNotDeleted: Failed to soft delete the record
 post.soft_deleted?   # => true
 post.kept?           # => false
 post.deleted_at      # => 2020-04-01 00:00:00 +0700
@@ -151,9 +151,9 @@ end
 
 ```ruby
 post = Post.first   # => #<Post id: 1, ...>
-post.restore      # => true
-post.restore!     # => Deletic::RecordNotRestored: Failed to restore the record
-post.deleted_at   # => nil
+post.restore        # => true
+post.restore!       # => Deletic::RecordNotRestored: Failed to restore the record
+post.deleted_at     # => nil
 ```
 
 ***From a controller***
