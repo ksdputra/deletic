@@ -11,7 +11,7 @@ A simple ActiveRecord mixin to add conventions for flagging records as deleted.
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'deletic'
+gem 'deletic', git: 'git://github.com/ksdputra/deletic.git'
 ```
 
 And then execute:
@@ -135,7 +135,7 @@ Controller actions need a small modification to soft delete records instead of d
 
 ``` ruby
 def destroy
-  @post.soft_deleted
+  @post.soft_delete
   redirect_to users_url, notice: "Post removed"
 end
 ```
