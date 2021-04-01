@@ -50,12 +50,14 @@ end
 **acts_as_deletic options**
 
 By default, Deletic will use column deleted_at and use default scope.
+Also please note that callbacks for save and update are NOT run when soft deleting/restoring a record.
 If you want to override this, you can give options:
 
 ```ruby
 class Post < ActiveRecord::Base
   acts_as_deletic column: :removed_at,
-                  without_default_scope: true
+                  without_default_scope: true,
+                  skip_ar_callbacks: false
 end
 ```
 
@@ -66,18 +68,22 @@ Restore is nulling column deleted_at.
 
 ```ruby
 post = Post.first
-post.soft_delete     # to soft delete a record
-post.soft_delete!    # to soft delete a record, throw error Deletic::RecordNotDeleted if failed
+post.soft_destroy    # to soft delete a record
+post.soft_destroy!   # to soft delete a record, throw error Deletic::RecordNotDeleted if failed
+post.soft_delete     # to soft delete a record, skip Deletic callbacks
 post.restore         # to restore a soft deleted record
 post.restore!        # to restore a soft deleted record, throw error Deletic::RecordNotRestored if failed
+post.reconstruct     # to restore a soft deleted record, skip Deletic callbacks
 post.soft_deleted?   # to check if a record is soft deleted
 post.kept?           # to check if a record is not soft deleted
 
 # Class method
-Post.soft_delete_all    # soft delete all records
-Post.soft_delete_all!   # soft delete all records, throw error Deletic::RecordNotDeleted if failed
+Post.soft_destroy_all   # soft delete all records
+Post.soft_destroy_all!  # soft delete all records, throw error Deletic::RecordNotDeleted if failed
+Post.soft_delete_all    # soft delete all records with single SQL UPDATE, skip Deletic callbacks
 Post.restore_all        # restore all records
 Post.restore_all!       # restore all records, throw error Deletic::RecordNotRestored if failed
+Post.reconstruct_all    # restore all records with single SQL UPDATE, skip Deletic callbacks
 
 # Scope: with default scope
 Post.all                 # return all kept record 
@@ -101,8 +107,8 @@ Post.kept            # => [#<Post id: 1, ...>]
 Post.soft_deleted    # => []
 
 post = Post.first    # => #<Post id: 1, ...>
-post.soft_delete     # => true
-post.soft_delete!    # => Deletic::RecordNotDeleted: Failed to soft delete the record
+post.soft_destroy     # => true
+post.soft_destroy!    # => Deletic::RecordNotDeleted: Failed to soft delete the record
 post.soft_deleted?   # => true
 post.kept?           # => false
 post.deleted_at      # => 2020-04-01 00:00:00 +0700
@@ -118,8 +124,8 @@ Post.kept            # => [#<Post id: 1, ...>]
 Post.soft_deleted    # => []
 
 post = Post.first    # => #<Post id: 1, ...>
-post.soft_delete     # => true
-post.soft_delete!    # => Deletic::RecordNotDeleted: Failed to soft delete the record
+post.soft_destroy     # => true
+post.soft_destroy!    # => Deletic::RecordNotDeleted: Failed to soft delete the record
 post.soft_deleted?   # => true
 post.kept?           # => false
 post.deleted_at      # => 2020-04-01 00:00:00 +0700
@@ -131,11 +137,11 @@ Post.soft_deleted    # => [#<Post id: 1, ...>]
 
 ***From a controller***
 
-Controller actions need a small modification to soft delete records instead of deleting them. Just replace `destroy` with `soft_delete`.
+Controller actions need a small modification to soft delete records instead of deleting them. Just replace `destroy` with `soft_destroy`.
 
 ``` ruby
 def destroy
-  @post.soft_delete
+  @post.soft_destroy
   redirect_to users_url, notice: "Post removed"
 end
 ```
@@ -171,7 +177,7 @@ deleted, it depends on the application.
 A better approach is to simply mark the one record as soft deleted, and use SQL
 joins to restrict finding these if that's desired.
 
-#### Callbacks
+#### Deletic Callbacks
 
 Callbacks can be run before, after, or around the soft delete and restore operations.
 A likely use is soft deleting or deleting associated records (but see "Working with associations" for an alternative).
@@ -186,8 +192,8 @@ class Post < ActiveRecord::Base
 
   has_many :comments
 
-  after_soft_delete do
-    comments.soft_delete_all
+  after_soft_destroy do
+    comments.soft_destroy_all
   end
 
   after_restore do
@@ -196,15 +202,16 @@ class Post < ActiveRecord::Base
 end
 ```
 
-*Warning:* Please note that callbacks for save and update are run when soft deleting/restoring a record
+If you don't want to run Deletic Callbacks when soft deleting, you can use `soft_delete`.
+If you don't want to run Deletic Callbacks when restoring, you can use `reconstruct`.
 
 
 #### Performance tuning
-`soft_delete_all` and `restore_all` is intended to behave like `destroy_all` which has callbacks, validations, and does one query per record. If performance is a big concern, you may consider replacing it with:
+`soft_destroy_all` and `restore_all` is intended to behave like `destroy_all` which has callbacks, validations, and does one query per record. If performance is a big concern, you may consider replacing it with:
 
-`scope.update_all(deleted_at: Time.current)`
+`soft_delete_all`
 or
-`scope.update_all(deleted_at: nil)`
+`reconstruct_all`
 
 #### Working with Devise
 

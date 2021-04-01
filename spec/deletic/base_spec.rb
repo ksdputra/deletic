@@ -37,6 +37,34 @@ RSpec.describe Deletic::Base do
         expect(post).to be_kept
       end
 
+      describe '#soft_destroy' do
+        it "sets deleted_at" do
+          expect {
+            post.soft_destroy
+          }.to change { post.deleted_at }
+        end
+
+        it "sets deleted_at in DB" do
+          expect {
+            post.soft_destroy
+          }.to change { post.reload.deleted_at }
+        end
+      end
+
+      describe '#soft_destroy!' do
+        it "sets deleted_at" do
+          expect {
+            post.soft_destroy!
+          }.to change { post.deleted_at }
+        end
+
+        it "sets deleted_at in DB" do
+          expect {
+            post.soft_destroy!
+          }.to change { post.reload.deleted_at }
+        end
+      end
+
       describe '#soft_delete' do
         it "sets deleted_at" do
           expect {
@@ -47,20 +75,6 @@ RSpec.describe Deletic::Base do
         it "sets deleted_at in DB" do
           expect {
             post.soft_delete
-          }.to change { post.reload.deleted_at }
-        end
-      end
-
-      describe '#soft_delete!' do
-        it "sets deleted_at" do
-          expect {
-            post.soft_delete!
-          }.to change { post.deleted_at }
-        end
-
-        it "sets deleted_at in DB" do
-          expect {
-            post.soft_delete!
           }.to change { post.reload.deleted_at }
         end
       end
@@ -84,6 +98,20 @@ RSpec.describe Deletic::Base do
           expect {
             post.restore!
           }.to raise_error(Deletic::RecordNotRestored)
+        end
+      end
+
+      describe '#reconstruct' do
+        it "doesn't change deleted_at" do
+          expect {
+            post.reconstruct
+          }.not_to change { post.deleted_at }
+        end
+
+        it "doesn't change deleted_at in DB" do
+          expect {
+            post.reconstruct
+          }.not_to change { post.reload.deleted_at }
         end
       end
     end
@@ -111,6 +139,28 @@ RSpec.describe Deletic::Base do
         expect(post).to_not be_kept
       end
 
+      describe '#soft_destroy' do
+        it "doesn't change deleted_at" do
+          expect {
+            post.soft_destroy
+          }.not_to change { post.deleted_at }
+        end
+
+        it "doesn't change deleted_at in DB" do
+          expect {
+            post.soft_destroy
+          }.not_to change { post.reload.deleted_at }
+        end
+      end
+
+      describe '#soft_destroy!' do
+        it "raises Deletic::RecordNotDeleted" do
+          expect {
+            post.soft_destroy!
+          }.to raise_error(Deletic::RecordNotDeleted)
+        end
+      end
+
       describe '#soft_delete' do
         it "doesn't change deleted_at" do
           expect {
@@ -122,14 +172,6 @@ RSpec.describe Deletic::Base do
           expect {
             post.soft_delete
           }.not_to change { post.reload.deleted_at }
-        end
-      end
-
-      describe '#soft_delete!' do
-        it "raises Deletic::RecordNotDeleted" do
-          expect {
-            post.soft_delete!
-          }.to raise_error(Deletic::RecordNotDeleted)
         end
       end
 
@@ -157,6 +199,20 @@ RSpec.describe Deletic::Base do
         it "clears deleted_at in DB" do
           expect {
             post.restore!
+          }.to change { post.reload.deleted_at }.to(nil)
+        end
+      end
+
+      describe '#reconstruct' do
+        it "clears deleted_at" do
+          expect {
+            post.reconstruct
+          }.to change { post.deleted_at }.to(nil)
+        end
+
+        it "clears deleted_at in DB" do
+          expect {
+            post.reconstruct
           }.to change { post.reload.deleted_at }.to(nil)
         end
       end
@@ -258,6 +314,20 @@ RSpec.describe Deletic::Base do
         expect(post).to be_kept
       end
 
+      describe '#soft_destroy' do
+        it "sets deleted_at" do
+          expect {
+            post.soft_destroy
+          }.to change { post.removed_at }
+        end
+
+        it "sets deleted_at in DB" do
+          expect {
+            post.soft_destroy
+          }.to change { post.reload.removed_at }
+        end
+      end
+
       describe '#soft_delete' do
         it "sets deleted_at" do
           expect {
@@ -285,6 +355,20 @@ RSpec.describe Deletic::Base do
           }.not_to change { post.reload.removed_at }
         end
       end
+
+      describe '#reconstruct' do
+        it "doesn't change deleted_at" do
+          expect {
+            post.reconstruct
+          }.not_to change { post.removed_at }
+        end
+
+        it "doesn't change deleted_at in DB" do
+          expect {
+            post.reconstruct
+          }.not_to change { post.reload.removed_at }
+        end
+      end
     end
 
     context "soft_deleted Post" do
@@ -308,6 +392,20 @@ RSpec.describe Deletic::Base do
 
       it "should not be kept?" do
         expect(post).to_not be_kept
+      end
+
+      describe '#soft_destroy' do
+        it "doesn't change deleted_at" do
+          expect {
+            post.soft_destroy
+          }.not_to change { post.removed_at }
+        end
+
+        it "doesn't change deleted_at in DB" do
+          expect {
+            post.soft_destroy
+          }.not_to change { post.reload.removed_at }
+        end
       end
 
       describe '#soft_delete' do
@@ -337,6 +435,122 @@ RSpec.describe Deletic::Base do
           }.to change { post.reload.removed_at }.to(nil)
         end
       end
+
+      describe '#reconstruct' do
+        it "clears deleted_at" do
+          expect {
+            post.reconstruct
+          }.to change { post.removed_at }.to(nil)
+        end
+
+        it "clears deleted_at in DB" do
+          expect {
+            post.reconstruct
+          }.to change { post.reload.removed_at }.to(nil)
+        end
+      end
+    end
+  end
+
+  describe '.soft_destroy_all' do
+    with_model :Post, scope: :all do
+      table do |t|
+        t.string :title
+        t.datetime :deleted_at
+        t.timestamps null: false
+      end
+
+      model do
+        acts_as_deletic without_default_scope: true
+      end
+    end
+
+    let!(:post) { Post.create!(title: "My very first post") }
+    let!(:post2) { Post.create!(title: "A second post") }
+
+    it "can soft_destroy all posts" do
+      expect {
+        Post.soft_destroy_all
+      }.to   change { post.reload.soft_deleted? }.to(true)
+        .and change { post2.reload.soft_deleted? }.to(true)
+    end
+
+    it "can soft_destroy a single post" do
+      Post.where(id: post.id).soft_destroy_all
+      expect(post.reload).to be_soft_deleted
+      expect(post2.reload).not_to be_soft_deleted
+    end
+
+    it "can soft_destroy no records" do
+      Post.where(id: []).soft_destroy_all
+      expect(post.reload).not_to be_soft_deleted
+      expect(post2.reload).not_to be_soft_deleted
+    end
+
+    context "through a collection" do
+      with_model :Comment, scope: :all do
+        table do |t|
+          t.belongs_to :user
+          t.datetime :deleted_at
+          t.timestamps null: false
+        end
+
+        model do
+          acts_as_deletic without_default_scope: true
+        end
+      end
+
+      with_model :User, scope: :all do
+        table do |t|
+          t.timestamps null: false
+        end
+
+        model do
+          has_many :comments
+        end
+      end
+
+      it "can be soft_destroy all related posts" do
+        user1 = User.create!
+        user2 = User.create!
+
+        2.times { user1.comments.create! }
+        2.times { user2.comments.create! }
+
+        user1.comments.soft_destroy_all
+        user1.comments.each do |comment|
+          expect(comment).to be_soft_deleted
+          expect(comment).to_not be_kept
+        end
+        user2.comments.each do |comment|
+          expect(comment).to_not be_soft_deleted
+          expect(comment).to be_kept
+        end
+      end
+    end
+  end
+
+  describe '.soft_destroy_all!' do
+    with_model :Post, scope: :all do
+      table do |t|
+        t.string :title
+        t.datetime :deleted_at
+        t.timestamps null: false
+      end
+
+      model do
+        acts_as_deletic without_default_scope: true
+      end
+    end
+
+    let!(:post) { Post.create!(title: "My very first post") }
+    let!(:post2) { Post.create!(title: "A second post") }
+
+    it "can soft_destroy all posts" do
+      expect {
+        Post.soft_destroy_all!
+      }.to   change { post.reload.soft_deleted? }.to(true)
+        .and change { post2.reload.soft_deleted? }.to(true)
     end
   end
 
@@ -418,30 +632,6 @@ RSpec.describe Deletic::Base do
     end
   end
 
-  describe '.soft_delete_all!' do
-    with_model :Post, scope: :all do
-      table do |t|
-        t.string :title
-        t.datetime :deleted_at
-        t.timestamps null: false
-      end
-
-      model do
-        acts_as_deletic without_default_scope: true
-      end
-    end
-
-    let!(:post) { Post.create!(title: "My very first post") }
-    let!(:post2) { Post.create!(title: "A second post") }
-
-    it "can soft_delete all posts" do
-      expect {
-        Post.soft_delete_all!
-      }.to   change { post.reload.soft_deleted? }.to(true)
-        .and change { post2.reload.soft_deleted? }.to(true)
-    end
-  end
-
   describe '.restore_all' do
     with_model :Post, scope: :all do
       table do |t|
@@ -502,7 +692,43 @@ RSpec.describe Deletic::Base do
     end
   end
 
-  describe 'soft_delete callbacks' do
+  describe '.reconstruct_all' do
+    with_model :Post, scope: :all do
+      table do |t|
+        t.string :title
+        t.datetime :deleted_at
+        t.timestamps null: false
+      end
+
+      model do
+        acts_as_deletic without_default_scope: true
+      end
+    end
+
+    let!(:post) { Post.create!(title: "My very first post", deleted_at: Time.now) }
+    let!(:post2) { Post.create!(title: "A second post", deleted_at: Time.now) }
+
+    it "can restore all posts" do
+      expect {
+        Post.reconstruct_all
+      }.to   change { post.reload.soft_deleted? }.to(false)
+        .and change { post2.reload.soft_deleted? }.to(false)
+    end
+
+    it "can restore a single post" do
+      Post.where(id: post.id).reconstruct_all
+      expect(post.reload).not_to be_soft_deleted
+      expect(post2.reload).to be_soft_deleted
+    end
+
+    it "can restore no records" do
+      Post.where(id: []).reconstruct_all
+      expect(post.reload).to be_soft_deleted
+      expect(post2.reload).to be_soft_deleted
+    end
+  end
+
+  describe 'soft_destroy callbacks with skip_ar_callbacks=false' do
     with_model :Post, scope: :all do
       table do |t|
         t.datetime :deleted_at
@@ -510,17 +736,18 @@ RSpec.describe Deletic::Base do
       end
 
       model do
-        acts_as_deletic without_default_scope: true
+        acts_as_deletic without_default_scope: true,
+                        skip_ar_callbacks: false
 
-        before_soft_delete :do_before_soft_delete
+        before_soft_destroy :do_before_soft_destroy
         before_save :do_before_save
         after_save :do_after_save
-        after_soft_delete :do_after_soft_delete
+        after_soft_destroy :do_after_soft_destroy
 
-        def do_before_soft_delete; end
+        def do_before_soft_destroy; end
         def do_before_save; end
         def do_after_save; end
-        def do_after_soft_delete; end
+        def do_after_soft_destroy; end
       end
     end
 
@@ -535,40 +762,173 @@ RSpec.describe Deletic::Base do
     let!(:post) { Post.create! }
 
     it "runs callbacks in correct order" do
-      expect(post).to receive(:do_before_soft_delete).ordered
+      expect(post).to receive(:do_before_soft_destroy).ordered
       expect(post).to receive(:do_before_save).ordered
       expect(post).to receive(:do_after_save).ordered
-      expect(post).to receive(:do_after_soft_delete).ordered
+      expect(post).to receive(:do_after_soft_destroy).ordered
 
-      expect(post.soft_delete).to be true
+      expect(post.soft_destroy).to be true
       expect(post).to be_soft_deleted
     end
 
-    context 'before_soft_delete' do
-      it "can allow soft_delete" do
-        expect(post).to receive(:do_before_soft_delete).and_return(true)
-        expect(post.soft_delete).to be true
+    context 'before_soft_destroy' do
+      it "can allow soft_destroy" do
+        expect(post).to receive(:do_before_soft_destroy).and_return(true)
+        expect(post.soft_destroy).to be true
         expect(post).to be_soft_deleted
       end
 
-      it "can prevent soft_delete" do
-        expect(post).to receive(:do_before_soft_delete) { abort_callback }
-        expect(post.soft_delete).to be false
+      it "can prevent soft_destroy" do
+        expect(post).to receive(:do_before_soft_destroy) { abort_callback }
+        expect(post.soft_destroy).to be false
         expect(post).not_to be_soft_deleted
       end
 
-      describe '#soft_delete!' do
+      describe '#soft_destroy!' do
         it "raises Deletic::RecordNotDeleted" do
-          expect(post).to receive(:do_before_soft_delete) { abort_callback }
+          expect(post).to receive(:do_before_soft_destroy) { abort_callback }
           expect {
-            post.soft_delete!
+            post.soft_destroy!
           }.to raise_error(Deletic::RecordNotDeleted)
         end
       end
     end
   end
 
-  describe 'restore callbacks' do
+  describe 'restore callbacks with skip_ar_callbacks=false' do
+    with_model :Post, scope: :all do
+      table do |t|
+        t.datetime :deleted_at
+        t.timestamps null: false
+      end
+
+      model do
+        acts_as_deletic without_default_scope: true,
+                        skip_ar_callbacks: false
+
+        before_restore :do_before_restore
+        before_save :do_before_save
+        after_save :do_after_save
+        after_restore :do_after_restore
+
+        def do_before_restore; end
+        def do_before_save; end
+        def do_after_save; end
+        def do_after_restore; end
+      end
+    end
+
+    def abort_callback
+      if ActiveRecord::VERSION::MAJOR < 5
+        false
+      else
+        throw :abort
+      end
+    end
+
+    let!(:post) { Post.create! deleted_at: Time.now }
+
+    it "runs callbacks in correct order" do
+      expect(post).to receive(:do_before_restore).ordered
+      expect(post).to receive(:do_before_save).ordered
+      expect(post).to receive(:do_after_save).ordered
+      expect(post).to receive(:do_after_restore).ordered
+
+      expect(post.restore).to be true
+      expect(post).not_to be_soft_deleted
+    end
+
+    context 'before_restore' do
+      it "can allow restore" do
+        expect(post).to receive(:do_before_restore).and_return(true)
+        expect(post.restore).to be true
+        expect(post).not_to be_soft_deleted
+      end
+
+      it "can prevent restore" do
+        expect(post).to receive(:do_before_restore) { abort_callback }
+        expect(post.restore).to be false
+        expect(post).to be_soft_deleted
+      end
+
+      describe '#restore!' do
+        it "raises Deletic::RecordNotDeleted" do
+          expect(post).to receive(:do_before_restore) { abort_callback }
+          expect {
+            post.restore!
+          }.to raise_error(Deletic::RecordNotRestored)
+        end
+      end
+    end
+  end
+
+  describe 'soft_destroycallbacks with skip_ar_callbacks=true' do
+    with_model :Post, scope: :all do
+      table do |t|
+        t.datetime :deleted_at
+        t.timestamps null: false
+      end
+
+      model do
+        acts_as_deletic without_default_scope: true
+
+        before_soft_destroy :do_before_soft_destroy
+        before_save :do_before_save
+        after_save :do_after_save
+        after_soft_destroy :do_after_soft_destroy
+
+        def do_before_soft_destroy; end
+        def do_before_save; end
+        def do_after_save; end
+        def do_after_soft_destroy; end
+      end
+    end
+
+    def abort_callback
+      if ActiveRecord::VERSION::MAJOR < 5
+        false
+      else
+        throw :abort
+      end
+    end
+
+    let!(:post) { Post.create! }
+
+    it "runs callbacks in correct order" do
+      expect(post).to receive(:do_before_soft_destroy).ordered
+      expect(post).not_to receive(:do_before_save)
+      expect(post).not_to receive(:do_after_save)
+      expect(post).to receive(:do_after_soft_destroy).ordered
+
+      expect(post.soft_destroy).to be true
+      expect(post).to be_soft_deleted
+    end
+
+    context 'before_soft_destroy' do
+      it "can allow soft_destroy" do
+        expect(post).to receive(:do_before_soft_destroy).and_return(true)
+        expect(post.soft_destroy).to be true
+        expect(post).to be_soft_deleted
+      end
+
+      it "can prevent soft__destroy" do
+        expect(post).to receive(:do_before_soft_destroy) { abort_callback }
+        expect(post.soft_destroy).to be false
+        expect(post).not_to be_soft_deleted
+      end
+
+      describe '#soft_destroy!' do
+        it "raises Deletic::RecordNotDeleted" do
+          expect(post).to receive(:do_before_soft_destroy) { abort_callback }
+          expect {
+            post.soft_destroy!
+          }.to raise_error(Deletic::RecordNotDeleted)
+        end
+      end
+    end
+  end
+
+  describe 'restore callbacks with skip_ar_callbacks=true' do
     with_model :Post, scope: :all do
       table do |t|
         t.datetime :deleted_at
@@ -602,8 +962,8 @@ RSpec.describe Deletic::Base do
 
     it "runs callbacks in correct order" do
       expect(post).to receive(:do_before_restore).ordered
-      expect(post).to receive(:do_before_save).ordered
-      expect(post).to receive(:do_after_save).ordered
+      expect(post).not_to receive(:do_before_save)
+      expect(post).not_to receive(:do_after_save)
       expect(post).to receive(:do_after_restore).ordered
 
       expect(post.restore).to be true

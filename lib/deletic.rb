@@ -9,11 +9,12 @@ require "deletic/base"
 ActiveSupport.on_load(:active_record) do
   class ActiveRecord::Base
     def self.acts_as_deletic(options={})
-      define_model_callbacks :soft_delete
+      define_model_callbacks :soft_destroy
       define_model_callbacks :restore
 
-      class_attribute :deletic_column
+      class_attribute :deletic_column, :skip_ar_callbacks
       self.deletic_column = options[:column] || :deleted_at
+      self.skip_ar_callbacks = options[:skip_ar_callbacks].nil? ? true : false
 
       if options[:without_default_scope]
         scope :kept, ->{ where(deletic_column => nil) }

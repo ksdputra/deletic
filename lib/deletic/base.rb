@@ -12,7 +12,7 @@ module Deletic
     # :nodoc:
     module ClassMethods
       # Soft Deletes the records by instantiating each
-      # record and calling its {#soft_delete} method.
+      # record and calling its {#soft_destroy} method.
       # Each object's callbacks are executed.
       # Returns the collection of objects that were soft deleted.
       #
@@ -21,32 +21,43 @@ module Deletic
       # once. It generates at least one SQL +UPDATE+ query per record (or
       # possibly more, to enforce your callbacks). If you want to soft delete many
       # rows quickly, without concern for their associations or callbacks, use
-      # #update_all(deleted_at: Time.current) instead.
+      # #soft_delete_all instead.
+      #
+      # ==== Examples
+      #
+      #   Person.where(age: 0..18).soft_destroy_all
+      def soft_destroy_all
+        kept.each(&:soft_destroy)
+      end
+
+      # Soft Deletes the records by instantiating each
+      # record and calling its {#soft_destroy!} method.
+      # Each object's callbacks are executed.
+      # Returns the collection of objects that were soft deleted.
+      #
+      # Note: Instantiation, callback execution, and update of each
+      # record can be time consuming when you're soft deleting many records at
+      # once. It generates at least one SQL +UPDATE+ query per record (or
+      # possibly more, to enforce your callbacks). If you want to soft delete many
+      # rows quickly, without concern for their associations or callbacks, use
+      # #soft_delete_all instead.
+      #
+      # ==== Examples
+      #
+      #   Person.where(age: 0..18).soft_destroy_all!
+      def soft_destroy_all!
+        kept.each(&:soft_destroy!)
+      end
+
+      # Soft Deletes the records by using #update_all
+      # No callback is executed.
+      # Returns the count of objects that were soft deleted.
       #
       # ==== Examples
       #
       #   Person.where(age: 0..18).soft_delete_all
       def soft_delete_all
-        kept.each(&:soft_delete)
-      end
-
-      # Soft Deletes the records by instantiating each
-      # record and calling its {#soft_delete!} method.
-      # Each object's callbacks are executed.
-      # Returns the collection of objects that were soft deleted.
-      #
-      # Note: Instantiation, callback execution, and update of each
-      # record can be time consuming when you're soft deleting many records at
-      # once. It generates at least one SQL +UPDATE+ query per record (or
-      # possibly more, to enforce your callbacks). If you want to soft delete many
-      # rows quickly, without concern for their associations or callbacks, use
-      # #update_all!(deleted_at: Time.current) instead.
-      #
-      # ==== Examples
-      #
-      #   Person.where(age: 0..18).soft_delete_all!
-      def soft_delete_all!
-        kept.each(&:soft_delete!)
+        update_all(deleted_at: Time.current)
       end
 
       # Restores the records by instantiating each
@@ -59,7 +70,7 @@ module Deletic
       # once. It generates at least one SQL +UPDATE+ query per record (or
       # possibly more, to enforce your callbacks). If you want to restore many
       # rows quickly, without concern for their associations or callbacks, use
-      # #update_all(deleted_at: nil) instead.
+      # #reconstruct_all instead.
       #
       # ==== Examples
       #
@@ -78,13 +89,25 @@ module Deletic
       # once. It generates at least one SQL +UPDATE+ query per record (or
       # possibly more, to enforce your callbacks). If you want to restore many
       # rows quickly, without concern for their associations or callbacks, use
-      # #update_all!(deleted_at: nil) instead.
+      # #reconstruct_all instead.
       #
       # ==== Examples
       #
       #   Person.where(age: 0..18).restore_all!
       def restore_all!
         soft_deleted.each(&:restore!)
+      end
+
+      # Restores the records by instantiating each
+      # record and calling its {#restore!} method.
+      # Each object's callbacks are executed.
+      # Returns the count of objects that were restored.
+      #
+      # ==== Examples
+      #
+      #   Person.where(age: 0..18).reconstruct_all!
+      def reconstruct_all
+        update_all(deleted_at: nil)
       end
     end
 
@@ -98,26 +121,49 @@ module Deletic
       !soft_deleted?
     end
 
+    # Soft Destroy the record in the database
+    #
+    # @return [Boolean] true if successful, otherwise false
+    def soft_destroy
+      return false if soft_deleted?
+
+      run_callbacks(:soft_destroy) do
+        if skip_ar_callbacks
+          update_column(self.class.deletic_column, Time.current)
+        else
+          update_attribute(self.class.deletic_column, Time.current)
+        end
+      end
+    end
+
+    # Soft Destroy the record in the database
+    #
+    # There's a series of callbacks associated with #soft_destroy!. If the
+    # <tt>before_soft_destroy</tt> callback throws +:abort+ the action is cancelled
+    # and #soft_destroy! raises {Deletic::RecordNotDeleted}.
+    #
+    # @return [Boolean] true if successful
+    # @raise {Deletic::RecordNotDeleted}
+    def soft_destroy!
+      soft_destroy || _raise_record_not_deleted
+    end
+
     # Soft Delete the record in the database
+    # The row is simply removed with an SQL UPDATE statement on the record's primary key,
+    # and no callbacks are executed.
+    #
+    # To enforce the object's before_destroy and after_destroy callbacks 
+    # or any :dependent association options, use #soft_destroy.
     #
     # @return [Boolean] true if successful, otherwise false
     def soft_delete
       return false if soft_deleted?
-      run_callbacks(:soft_delete) do
+
+      if skip_ar_callbacks
+        update_column(self.class.deletic_column, Time.current)
+      else
         update_attribute(self.class.deletic_column, Time.current)
       end
-    end
-
-    # Soft Delete the record in the database
-    #
-    # There's a series of callbacks associated with #soft_delete!. If the
-    # <tt>before_soft_delete</tt> callback throws +:abort+ the action is cancelled
-    # and #soft_delete! raises {Deletic::RecordNotDeleted}.
-    #
-    # @return [Boolean] true if successful
-    # @raise {Deletic::RecordNotDeleted}
-    def soft_delete!
-      soft_delete || _raise_record_not_deleted
     end
 
     # Restore the record in the database
@@ -125,8 +171,13 @@ module Deletic
     # @return [Boolean] true if successful, otherwise false
     def restore
       return false unless soft_deleted?
+
       run_callbacks(:restore) do
-        update_attribute(self.class.deletic_column, nil)
+        if skip_ar_callbacks
+          update_column(self.class.deletic_column, nil)
+        else
+          update_attribute(self.class.deletic_column, nil)
+        end
       end
     end
 
@@ -140,6 +191,24 @@ module Deletic
     # @raise {Deletic::RecordNotRestored}
     def restore!
       restore || _raise_record_not_restored
+    end
+
+    # Restore the record in the database
+    # The row is simply removed with an SQL UPDATE statement on the record's primary key,
+    # and no callbacks are executed.
+    #
+    # To enforce the object's before_restore and after_restore callbacks 
+    # or any :dependent association options, use #restore.
+    #
+    # @return [Boolean] true if successful, otherwise false
+    def reconstruct
+      return false unless soft_deleted?
+
+      if skip_ar_callbacks
+        update_column(self.class.deletic_column, nil)
+      else
+        update_attribute(self.class.deletic_column, nil)
+      end
     end
 
     private

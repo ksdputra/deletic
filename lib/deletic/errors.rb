@@ -7,7 +7,7 @@ module Deletic
   class DeleticError < StandardError
   end
 
-  # Raised by {Deletic::Base#soft_delete!}
+  # Raised by {Deletic::Base#soft_destroy!}
   class RecordNotDeleted < DeleticError
     attr_reader :record
 
